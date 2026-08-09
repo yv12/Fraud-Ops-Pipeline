@@ -1,0 +1,62 @@
+# Problem Statement
+
+**Project:** Automated lifecycle management for a production fraud scoring model
+
+## Context
+
+A payment provider scores every incoming card transaction for fraud risk in real time. The scoring model was trained on historical transactions where fraud outcomes were known.
+
+Fraud is adversarial. Attackers actively change their behaviour to evade whatever is currently catching them. Legitimate customer behaviour also shifts over time. As a result, a model that performed well at deployment becomes progressively less accurate against live traffic.
+
+## Problem
+
+Once a fraud model is deployed, there is no mechanism to keep it working.
+
+Specifically:
+
+* **Degradation is invisible:** The model keeps returning scores with full confidence while its accuracy falls. Nothing signals that the world has moved.
+* **Ground truth arrives late:** A transaction is only confirmed as fraud weeks later, when a chargeback is raised. Recent performance is therefore always partly unknown.
+* **Retraining is manual and slow:** Each new version is rebuilt by hand, which means it happens rarely, and rarely means stale.
+* **New versions are unproven:** There is no way to know whether a replacement model is genuinely better before it starts making real decisions.
+* **Decisions are not auditable:** There is no record of which model version scored which transaction, what data it was trained on, or who approved it.
+* **The cost of failure is two-sided:** Missed fraud causes direct loss. Wrongly declining a legitimate transaction costs a sale and a customer relationship. Neither error can be traded away freely.
+
+## Objective
+
+Build an automated pipeline that keeps a deployed fraud scoring model accurate, auditable, and safely replaceable over time, without manual intervention and without exposing live traffic to an unvalidated model.
+
+## Required Capabilities
+
+The system must:
+
+1. Record every training run with its data, parameters, and resulting metrics, so any version can be reproduced and compared.
+2. Version and govern models, tracking which version is live, which is under test, and which is retired, with a trail sufficient for audit.
+3. Serve scores through an interface that returns a decision within the transaction's latency budget.
+4. Detect degradation by continuously comparing incoming traffic against the data the live model was trained on, and flagging meaningful divergence.
+5. Retrain on a defined trigger rather than on an ad hoc human decision.
+6. Validate before promotion, so a candidate model only replaces the incumbent if it measurably outperforms it on comparable data.
+7. Test candidates without risk, by scoring live traffic in parallel with the live model while having no effect on real decisions.
+8. Support rollback to any previous version.
+
+## Success Criteria
+
+* Model degradation is detected by the system, not by a person noticing.
+* A retrained model can be evaluated against the incumbent without touching live decisions.
+* No model reaches production without passing an automated comparison against the current one.
+* Any past scoring decision can be traced to a specific model version and its training data.
+* The full cycle, from drift detected to a validated replacement being ready, runs without manual steps.
+
+## Out of Scope
+
+> One note on framing. Keep the "out of scope" section. In an interview, being able to say what you deliberately did not build, and why, reads as product judgment. Building everything reads as not having made choices.
+
+* Maximising the fraud model's own predictive accuracy. The model is deliberately simple; this project is about the lifecycle around it, not the algorithm inside it.
+* Feature engineering sophistication.
+* Production-scale infrastructure, high availability, and real throughput.
+* Regulatory model documentation and formal approval workflow, which a real deployment would require.
+
+## Constraints
+
+* Runs locally on a single machine.
+* Free and open source tooling only.
+* Historical data is used to simulate the passage of time, since live traffic is not available.

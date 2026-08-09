@@ -1,0 +1,288 @@
+/* ============================================
+   Navigation (shared by both pages)
+   ============================================ */
+.page-nav {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.nav-link {
+    text-decoration: none;
+    color: #94a3b8;
+    font-weight: 600;
+    font-size: 0.9rem;
+    padding: 0.4rem 1rem;
+    border-radius: 0.5rem;
+    border: 1px solid transparent;
+    transition: all 0.2s ease;
+}
+
+.nav-link:hover {
+    color: var(--text-color);
+    border-color: var(--glass-border);
+}
+
+.nav-link.active {
+    color: var(--text-color);
+    background: rgba(59, 130, 246, 0.2);
+    border-color: var(--accent);
+}
+
+/* ============================================
+   Architecture Page
+   ============================================ */
+.arch-container {
+    width: 100%;
+    margin: 0 auto;
+    padding: 0.5rem 1.5rem;
+    height: 100vh;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+.arch-body {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    position: relative;
+    min-height: 0;
+}
+
+/* ============================================
+   SVG Lines Layer
+   ============================================ */
+.flow-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+    z-index: 0;
+}
+
+/* ============================================
+   Horizontal Flow Layout
+   ============================================ */
+.horizontal-flow {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0;
+    position: relative;
+    z-index: 1;
+    padding: 1rem 0;
+}
+
+.flow-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+}
+
+.flow-connector {
+    color: rgba(59, 130, 246, 0.4);
+    font-size: 1.5rem;
+    font-weight: 800;
+    padding: 0 0.4rem;
+    flex-shrink: 0;
+    transition: color 0.3s ease;
+}
+
+.flow-connector.active {
+    color: var(--accent);
+    text-shadow: 0 0 10px var(--accent);
+}
+
+/* ============================================
+   Nodes - Base
+   ============================================ */
+.arch-node {
+    background: var(--panel-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(12px);
+    border-radius: 0.6rem;
+    padding: 0.5rem 0.8rem;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    position: relative;
+    min-width: 100px;
+    width: 120px;
+}
+
+.arch-node:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 20px rgba(0,0,0,0.3);
+}
+
+.arch-icon {
+    font-size: 1.3rem;
+    margin-bottom: 0.15rem;
+}
+
+.arch-label {
+    font-weight: 800;
+    font-size: 0.75rem;
+    margin-bottom: 0.05rem;
+}
+
+.arch-desc {
+    font-size: 0.6rem;
+    color: #94a3b8;
+}
+
+.step-badge {
+    position: absolute;
+    top: -6px;
+    right: -6px;
+    background: var(--accent);
+    color: #fff;
+    font-size: 0.55rem;
+    font-weight: 800;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 0 6px rgba(59, 130, 246, 0.5);
+}
+
+/* ============================================
+   Node Type Colors
+   ============================================ */
+
+/* Source - Blue */
+.source-node {
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+/* Gateway - Blue */
+.gateway-node {
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+/* Production Model - RED for decision/fraud detection */
+.decision-node {
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.decision-node .step-badge {
+    background: var(--danger);
+}
+
+/* Candidate - Dashed, orange tint */
+.shadow-node {
+    border-style: dashed;
+    border-color: rgba(251, 146, 60, 0.4);
+    background: rgba(251, 146, 60, 0.06);
+}
+
+.shadow-node .step-badge {
+    background: #f97316;
+}
+
+/* Database - Amber */
+.db-node {
+    border-color: rgba(245, 158, 11, 0.4);
+    background: rgba(245, 158, 11, 0.08);
+}
+
+.db-node .step-badge {
+    background: #f59e0b;
+}
+
+/* Ops - Teal */
+.ops-node {
+    border-color: rgba(20, 184, 166, 0.3);
+    background: rgba(20, 184, 166, 0.06);
+}
+
+.ops-node .step-badge {
+    background: #14b8a6;
+}
+
+/* Judge - Red (makes the final call) */
+.judge-node {
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.judge-node .step-badge {
+    background: var(--danger);
+}
+
+/* MLflow Registry - Purple */
+.registry-node {
+    border-color: rgba(139, 92, 246, 0.4);
+    background: rgba(139, 92, 246, 0.1);
+}
+
+.registry-node .step-badge {
+    background: #8b5cf6;
+}
+
+/* ============================================
+   Glow States
+   ============================================ */
+.arch-node.glow {
+    border-color: var(--accent) !important;
+    box-shadow: 0 0 25px rgba(59, 130, 246, 0.5);
+    transform: scale(1.08);
+}
+
+.arch-node.glow-red {
+    border-color: var(--danger) !important;
+    box-shadow: 0 0 25px rgba(239, 68, 68, 0.5);
+    transform: scale(1.08);
+}
+
+.arch-node.glow-green {
+    border-color: var(--success) !important;
+    box-shadow: 0 0 25px rgba(16, 185, 129, 0.5);
+    transform: scale(1.08);
+}
+
+/* ============================================
+   Return Arrow Label
+   ============================================ */
+.return-label {
+    text-align: center;
+    font-size: 0.7rem;
+    color: rgba(139, 92, 246, 0.6);
+    font-weight: 600;
+    padding: 0.3rem 0;
+    letter-spacing: 0.5px;
+}
+
+/* ============================================
+   Step Explanation Panel
+   ============================================ */
+.step-panel {
+    flex-shrink: 0;
+    background: var(--panel-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(12px);
+    border-radius: 0.6rem;
+    padding: 0.7rem 1.2rem;
+    margin-top: 0.3rem;
+    transition: all 0.3s ease;
+}
+
+.step-panel-title {
+    font-weight: 800;
+    font-size: 0.85rem;
+    margin-bottom: 0.2rem;
+    color: var(--accent);
+}
+
+.step-panel-text {
+    font-size: 0.75rem;
+    color: #cbd5e1;
+    line-height: 1.5;
+}

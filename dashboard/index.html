@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Fraud Ops - Live Dashboard</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="architecture.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>FraudOps Pipeline</h1>
+            <div class="status-container">
+                <div class="tx-count">Total Transactions: <span id="tx-counter">0</span></div>
+                <nav class="page-nav">
+                    <a href="index.html" class="nav-link active">Live Dashboard</a>
+                    <a href="architecture.html" class="nav-link">Architecture</a>
+                </nav>
+                <div class="status">
+                    <div id="connection-status" class="bulb red"></div>
+                    <span>Live Feed</span>
+                </div>
+            </div>
+        </header>
+
+        <div class="pipeline">
+            <div class="node incoming" id="node-incoming">
+                <h3>Transaction</h3>
+                <p id="incoming-amount">Waiting...</p>
+            </div>
+            
+            <div class="models-container">
+                <div class="model-card production" id="card-production">
+                    <div class="model-header">
+                        <h3>Production</h3>
+                        <span class="version" id="prod-version">v?</span>
+                    </div>
+                    <div class="model-metrics" id="prod-metrics">Precision: --% | Recall: --%</div>
+                    <div class="score" id="prod-score">0</div>
+                    <div class="decision" id="prod-decision">Normal</div>
+                </div>
+                
+                <div class="model-card candidate" id="card-candidate">
+                    <div class="model-header">
+                        <h3>Candidate (Shadow)</h3>
+                        <span class="version" id="cand-version">v?</span>
+                    </div>
+                    <div class="model-metrics" id="cand-metrics">Precision: --% | Recall: --%</div>
+                    <div class="score" id="cand-score">0</div>
+                    <div class="decision" id="cand-decision">Normal</div>
+                </div>
+            </div>
+
+            <div class="node database" id="node-database">
+                <h3>Ledger (DuckDB)</h3>
+                <p>Logged</p>
+            </div>
+        </div>
+
+        <div class="terminal-container">
+            <div class="terminal-header">
+                <h3>Live Transaction Terminal</h3>
+            </div>
+            <div class="terminal" id="terminal">
+                <!-- Logs go here -->
+            </div>
+        </div>
+    </div>
+    
+    <script src="app.js"></script>
+</body>
+</html>

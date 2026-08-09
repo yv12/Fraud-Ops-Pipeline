@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>FraudOps - System Architecture</title>
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="architecture.css">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+</head>
+<body>
+    <div class="arch-container">
+        <header>
+            <h1>FraudOps Pipeline</h1>
+            <nav class="page-nav">
+                <a href="index.html" class="nav-link">Live Dashboard</a>
+                <a href="architecture.html" class="nav-link active">Architecture</a>
+            </nav>
+        </header>
+
+        <div class="arch-body">
+            <!-- SVG for connection lines drawn behind everything -->
+            <svg class="flow-svg" id="flow-svg"></svg>
+
+            <div class="horizontal-flow">
+                <!-- Column 1: Source -->
+                <div class="flow-col">
+                    <div class="arch-node source-node" id="arch-simulator">
+                        <div class="step-badge">1</div>
+                        <div class="arch-icon">📡</div>
+                        <div class="arch-label">Simulator</div>
+                        <div class="arch-desc">Live Traffic</div>
+                    </div>
+                </div>
+
+                <div class="flow-connector">→</div>
+
+                <!-- Column 2: Gateway -->
+                <div class="flow-col">
+                    <div class="arch-node gateway-node" id="arch-api">
+                        <div class="step-badge">2</div>
+                        <div class="arch-icon">🌐</div>
+                        <div class="arch-label">API Gateway</div>
+                        <div class="arch-desc">FastAPI</div>
+                    </div>
+                </div>
+
+                <div class="flow-connector">→</div>
+
+                <!-- Column 3: Models (stacked vertically) -->
+                <div class="flow-col models-col">
+                    <div class="arch-node decision-node" id="arch-prod">
+                        <div class="step-badge">3a</div>
+                        <div class="arch-icon">🛡️</div>
+                        <div class="arch-label">Production</div>
+                        <div class="arch-desc">Makes Decision</div>
+                    </div>
+                    <div class="arch-node shadow-node" id="arch-cand">
+                        <div class="step-badge">3b</div>
+                        <div class="arch-icon">🧪</div>
+                        <div class="arch-label">Candidate</div>
+                        <div class="arch-desc">Shadow (Silent)</div>
+                    </div>
+                </div>
+
+                <div class="flow-connector">→</div>
+
+                <!-- Column 4: Database -->
+                <div class="flow-col">
+                    <div class="arch-node db-node" id="arch-db">
+                        <div class="step-badge">4</div>
+                        <div class="arch-icon">🗄️</div>
+                        <div class="arch-label">DuckDB</div>
+                        <div class="arch-desc">Audit Ledger</div>
+                    </div>
+                </div>
+
+                <div class="flow-connector">→</div>
+
+                <!-- Column 5: Ops (stacked vertically) -->
+                <div class="flow-col ops-col">
+                    <div class="arch-node ops-node" id="arch-monitor">
+                        <div class="step-badge">5</div>
+                        <div class="arch-icon">👁️</div>
+                        <div class="arch-label">Watchdog</div>
+                        <div class="arch-desc">Drift Check</div>
+                    </div>
+                    <div class="arch-node ops-node" id="arch-retrain">
+                        <div class="step-badge">6</div>
+                        <div class="arch-icon">🔄</div>
+                        <div class="arch-label">Retrain</div>
+                        <div class="arch-desc">Auto-Rebuild</div>
+                    </div>
+                </div>
+
+                <div class="flow-connector">→</div>
+
+                <!-- Column 6: Judge + MLflow -->
+                <div class="flow-col final-col">
+                    <div class="arch-node judge-node" id="arch-judge">
+                        <div class="step-badge">7</div>
+                        <div class="arch-icon">⚖️</div>
+                        <div class="arch-label">The Judge</div>
+                        <div class="arch-desc">Your Rules</div>
+                    </div>
+                    <div class="arch-node registry-node" id="arch-mlflow">
+                        <div class="step-badge">8</div>
+                        <div class="arch-icon">📦</div>
+                        <div class="arch-label">MLflow</div>
+                        <div class="arch-desc">Model Vault</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Return arrow label -->
+            <div class="return-label">↩ MLflow feeds updated models back to the API Gateway</div>
+
+            <!-- Step Explanation Panel -->
+            <div class="step-panel" id="step-panel">
+                <div class="step-panel-title" id="step-title">Click any node to learn more</div>
+                <div class="step-panel-text" id="step-text">Each box represents a component in the fraud detection pipeline. The flow moves left → right. Click on any node to see what it does. The animation auto-plays every 3 seconds.</div>
+            </div>
+        </div>
+    </div>
+
+    <script src="architecture.js"></script>
+</body>
+</html>

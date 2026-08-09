@@ -1,0 +1,27 @@
+# Virtual environment
+.venv/
+
+# Database files
+*.duckdb
+*.duckdb.wal
+*.db
+
+# MLflow artifacts
+mlruns/
+mlartifacts/
+
+# Data files (too large for GitHub)
+Data/creditcard.csv
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+
+# IDE
+.vscode/
+.idea/
+
+# OS files
+Thumbs.db
+.DS_Store

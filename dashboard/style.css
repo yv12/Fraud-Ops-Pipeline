@@ -1,0 +1,256 @@
+:root {
+    --bg-color: #0f172a;
+    --panel-bg: rgba(30, 41, 59, 0.7);
+    --text-color: #f8fafc;
+    --accent: #3b82f6;
+    --success: #10b981;
+    --danger: #ef4444;
+    --glass-border: rgba(255, 255, 255, 0.1);
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Inter', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    background-image: radial-gradient(circle at 50% -20%, #1e3a8a, var(--bg-color));
+    height: 100vh;
+    overflow: hidden;
+}
+
+.container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 1rem 2rem;
+    height: 100vh;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+}
+
+header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 1rem;
+    flex-shrink: 0;
+}
+
+header h1 {
+    margin: 0;
+    font-size: 1.8rem;
+    background: linear-gradient(to right, #60a5fa, #c084fc);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+}
+
+.status-container {
+    display: flex;
+    align-items: center;
+    gap: 2rem;
+}
+
+.tx-count {
+    font-size: 1rem;
+    font-weight: 600;
+    color: #cbd5e1;
+}
+.tx-count span {
+    color: var(--accent);
+    font-weight: 800;
+    font-size: 1.2rem;
+}
+
+.status {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+}
+
+.bulb {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    transition: all 0.3s ease;
+}
+
+.bulb.red {
+    background-color: var(--danger);
+    box-shadow: 0 0 10px var(--danger);
+}
+
+.bulb.green {
+    background-color: var(--success);
+    box-shadow: 0 0 10px var(--success);
+}
+
+/* Pipeline */
+.pipeline {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+    flex-shrink: 0;
+}
+
+.node {
+    background: var(--panel-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
+    padding: 0.5rem 2rem;
+    border-radius: 0.75rem;
+    text-align: center;
+    transition: all 0.2s ease;
+}
+
+.node h3 {
+    margin: 0 0 0.25rem 0;
+    color: #94a3b8;
+    font-size: 0.85rem;
+}
+
+.node p {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 800;
+}
+
+.node.active {
+    border-color: var(--accent);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.5);
+    transform: scale(1.05);
+}
+
+.models-container {
+    display: flex;
+    gap: 1.5rem;
+    width: 100%;
+    justify-content: center;
+}
+
+.model-card {
+    background: var(--panel-bg);
+    border: 1px solid var(--glass-border);
+    backdrop-filter: blur(10px);
+    padding: 1rem;
+    border-radius: 1rem;
+    width: 280px;
+    text-align: center;
+    transition: all 0.3s ease;
+}
+
+.model-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5rem;
+}
+
+.model-header h3 {
+    margin: 0;
+    font-size: 1rem;
+}
+
+.model-metrics {
+    font-size: 0.75rem;
+    color: #94a3b8;
+    margin-bottom: 0.5rem;
+    padding: 0.2rem 0;
+    border-bottom: 1px solid var(--glass-border);
+}
+
+.version {
+    background: rgba(255,255,255,0.1);
+    padding: 0.2rem 0.5rem;
+    border-radius: 0.5rem;
+    font-size: 0.75rem;
+}
+
+.score {
+    font-size: 2rem;
+    font-weight: 800;
+    margin-bottom: 0.2rem;
+}
+
+.decision {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+}
+
+/* Prediction States */
+.model-card.fraud {
+    border-color: var(--danger);
+    box-shadow: 0 0 20px rgba(239, 68, 68, 0.3);
+}
+
+.model-card.fraud .decision {
+    color: var(--danger);
+}
+
+.model-card.normal {
+    border-color: var(--success);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+}
+
+.model-card.normal .decision {
+    color: var(--success);
+}
+
+/* Terminal */
+.terminal-container {
+    background: #000;
+    border: 1px solid #333;
+    border-radius: 0.5rem;
+    overflow: hidden;
+    flex: 1; 
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+}
+
+.terminal-header {
+    background: #111;
+    padding: 0.5rem 1rem;
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+}
+
+.terminal-header h3 {
+    margin: 0;
+    font-size: 0.9rem;
+    color: #888;
+}
+
+.terminal {
+    flex: 1; 
+    padding: 1rem;
+    overflow-y: auto; 
+    font-family: 'Courier New', Courier, monospace;
+    font-size: 0.85rem;
+    line-height: 1.5;
+}
+
+.log-line {
+    margin-bottom: 0.2rem;
+}
+
+.log-time {
+    color: #888;
+}
+
+.log-id {
+    color: #3b82f6;
+}
+
+.log-fraud {
+    color: var(--danger);
+    font-weight: bold;
+}
+.log-normal {
+    color: var(--success);
+}
