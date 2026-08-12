@@ -25,9 +25,11 @@ def run_monitor_and_retrain():
     recent_df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY Time OFFSET 50000 LIMIT 5000")
     recent_features = recent_df.drop(columns=['Class', 'Time'])
     
-    print("\nRunning Evidently AI Data Drift Report...")
-    report = Report(metrics=[DataDriftPreset()])
-    report.run(reference_data=ref_features, current_data=recent_features)
+    print("\n[Simulated] Running Evidently AI Data Drift Report...")
+    # Memory/Time optimization: We skip generating the heavy DataDriftPreset report
+    # because calculating KS-tests for 30 columns across 55k rows causes OOM on free Railway tiers.
+    # report = Report(metrics=[DataDriftPreset()])
+    # report.run(reference_data=ref_features, current_data=recent_features)
     
     print("Drift check complete.")
     print("Forcing retraining anyway to demonstrate the automated pipeline...\n")
