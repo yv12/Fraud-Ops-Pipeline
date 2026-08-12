@@ -199,60 +199,21 @@ def run_builtin_simulator():
             tx_id = str(uuid.uuid4())
             features = row.drop(['Class']).to_dict()
             
-            # Score directly in-process instead of HTTP to avoid network overhead
+            # Score via HTTP to properly hit the FastAPI endpoint which triggers WebSockets natively
+            import requests
+            import os
+            port = os.environ.get("PORT", "8000")
+            url = f"http://127.0.0.1:{port}/score"
+            
+            payload = {
+                "transaction_id": tx_id,
+                "features": features
+            }
+            
             try:
-                if models["Production"] is not None:
-                    features_for_model = {k: v for k, v in features.items() if k != 'Time'}
-                    import pandas as _pd
-                    df_features = _pd.DataFrame([features_for_model])
-                    
-                    global live_transaction_count
-                    live_transaction_count += 1
-                    
-                    db_queue.put(("TX", tx_id, features))
-                    
-                    prod_prob = models["Production"].predict_proba(df_features)[0][1]
-                    prod_decision = 1 if prod_prob >= 0.5 else 0
-                    db_queue.put(("SCORE", tx_id, f"v{model_versions['Production']}", prod_prob, "Production"))
-                    
-                    cand_prob = None
-                    if models["Candidate"] is not None:
-                        try:
-                            cand_prob = models["Candidate"].predict_proba(df_features)[0][1]
-                            db_queue.put(("SCORE", tx_id, f"v{model_versions['Candidate']}", cand_prob, "Shadow"))
-                        except Exception:
-                            pass
-                    
-                    amount = features.get("Amount", 0.0)
-                    payload = {
-                        "type": "TX",
-                        "transaction_id": tx_id,
-                        "amount": round(amount, 2),
-                        "prod_prob": round(prod_prob, 4),
-                        "prod_decision": prod_decision,
-                        "cand_prob": round(cand_prob, 4) if cand_prob is not None else None,
-                        "cand_decision": 1 if (cand_prob is not None and cand_prob >= 0.5) else 0,
-                        "prod_version": model_versions["Production"],
-                        "cand_version": model_versions["Candidate"],
-                        "prod_metrics": model_metrics["Production"],
-                        "cand_metrics": model_metrics["Candidate"],
-                        "total_count": live_transaction_count
-                    }
-                    
-                    recent_logs.append(payload)
-                    if len(recent_logs) > 50:
-                        recent_logs.pop(0)
-                    
-                    # Broadcast via WebSocket using asyncio
-                    try:
-                        loop = asyncio.get_event_loop()
-                        if loop.is_running():
-                            asyncio.run_coroutine_threadsafe(manager.broadcast(payload), loop)
-                    except Exception:
-                        pass
-                        
-            except Exception as e:
-                print(f"[SIMULATOR] Error: {e}")
+                requests.post(url, json=payload, timeout=2)
+            except requests.exceptions.RequestException as e:
+                print(f"[SIMULATOR] Error sending request: {e}")
             
             time.sleep(random.uniform(0.5, 2.0))
     
