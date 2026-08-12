@@ -4,10 +4,12 @@ import mlflow.sklearn
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import precision_score, recall_score
 from mlflow.tracking import MlflowClient
+import os
 
 def train_and_register_baseline():
     # Use a local SQLite database for MLflow to enable the Model Registry
-    mlflow.set_tracking_uri("sqlite:///mlflow.db") 
+    mlflow_uri = os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
+    mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment("Fraud_Scoring_Baseline")
 
     print("Loading data for baseline model...")

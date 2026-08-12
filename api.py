@@ -136,12 +136,126 @@ def poll_mlflow():
         time.sleep(10)
         load_models_from_mlflow()
 
+def auto_initialize():
+    """Auto-setup DB, train baseline model, and start simulator on first deploy."""
+    import setup_db
+    import train_baseline
+    
+    # Step 1: Create tables if they don't exist
+    print("[AUTO-INIT] Setting up database schema...")
+    try:
+        setup_db.setup_database()
+    except Exception as e:
+        print(f"[AUTO-INIT] DB setup note: {e}")
+    
+    # Step 2: Train baseline if no Production model exists
+    client = MlflowClient()
+    try:
+        client.get_model_version_by_alias("FraudScoringModel", "Production")
+        print("[AUTO-INIT] Production model already exists, skipping training.")
+    except Exception:
+        print("[AUTO-INIT] No Production model found. Training baseline...")
+        train_baseline.train_and_register_baseline()
+    
+    # Step 3: Reload models after training
+    load_models_from_mlflow()
+    
+    # Step 4: Start the built-in simulator
+    print("[AUTO-INIT] Starting background simulator...")
+    run_builtin_simulator()
+
+def run_builtin_simulator():
+    """Run the simulator as a background thread inside the API process."""
+    import pandas as pd
+    import uuid
+    import random
+    
+    def _simulate():
+        # Give the server a moment to fully start
+        time.sleep(3)
+        
+        print("[SIMULATOR] Loading transaction data...")
+        try:
+            header = pd.read_csv("Data/creditcard.csv", nrows=0).columns
+            df = pd.read_csv("Data/creditcard.csv", skiprows=range(1, 100000), nrows=10000)
+            df.columns = header
+        except FileNotFoundError:
+            print("[SIMULATOR] creditcard.csv not found. Simulator disabled.")
+            return
+        
+        print(f"[SIMULATOR] Loaded {len(df)} rows. Starting live traffic...")
+        while True:
+            row = df.sample(1).iloc[0]
+            tx_id = str(uuid.uuid4())
+            features = row.drop(['Class']).to_dict()
+            
+            # Score directly in-process instead of HTTP to avoid network overhead
+            try:
+                if models["Production"] is not None:
+                    features_for_model = {k: v for k, v in features.items() if k != 'Time'}
+                    import pandas as _pd
+                    df_features = _pd.DataFrame([features_for_model])
+                    
+                    global live_transaction_count
+                    live_transaction_count += 1
+                    
+                    db_queue.put(("TX", tx_id, features))
+                    
+                    prod_prob = models["Production"].predict_proba(df_features)[0][1]
+                    prod_decision = 1 if prod_prob >= 0.5 else 0
+                    db_queue.put(("SCORE", tx_id, f"v{model_versions['Production']}", prod_prob, "Production"))
+                    
+                    cand_prob = None
+                    if models["Candidate"] is not None:
+                        try:
+                            cand_prob = models["Candidate"].predict_proba(df_features)[0][1]
+                            db_queue.put(("SCORE", tx_id, f"v{model_versions['Candidate']}", cand_prob, "Shadow"))
+                        except Exception:
+                            pass
+                    
+                    amount = features.get("Amount", 0.0)
+                    payload = {
+                        "type": "TX",
+                        "transaction_id": tx_id,
+                        "amount": round(amount, 2),
+                        "prod_prob": round(prod_prob, 4),
+                        "prod_decision": prod_decision,
+                        "cand_prob": round(cand_prob, 4) if cand_prob is not None else None,
+                        "cand_decision": 1 if (cand_prob is not None and cand_prob >= 0.5) else 0,
+                        "prod_version": model_versions["Production"],
+                        "cand_version": model_versions["Candidate"],
+                        "prod_metrics": model_metrics["Production"],
+                        "cand_metrics": model_metrics["Candidate"],
+                        "total_count": live_transaction_count
+                    }
+                    
+                    recent_logs.append(payload)
+                    if len(recent_logs) > 50:
+                        recent_logs.pop(0)
+                    
+                    # Broadcast via WebSocket using asyncio
+                    try:
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            asyncio.run_coroutine_threadsafe(manager.broadcast(payload), loop)
+                    except Exception:
+                        pass
+                        
+            except Exception as e:
+                print(f"[SIMULATOR] Error: {e}")
+            
+            time.sleep(random.uniform(0.5, 2.0))
+    
+    threading.Thread(target=_simulate, daemon=True).start()
+
 @app.on_event("startup")
 def startup_event():
     print("Starting API...")
     threading.Thread(target=db_worker, daemon=True).start()
     load_models_from_mlflow()
     threading.Thread(target=poll_mlflow, daemon=True).start()
+    # Auto-initialize in background so server starts accepting requests immediately
+    threading.Thread(target=auto_initialize, daemon=True).start()
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
