@@ -255,7 +255,7 @@ def run_builtin_simulator():
     threading.Thread(target=_simulate, daemon=True).start()
 
 @app.on_event("startup")
-def startup_event():
+async def startup_event():
     print("Starting API...")
     app.state.loop = asyncio.get_running_loop()
     threading.Thread(target=db_worker, daemon=True).start()
