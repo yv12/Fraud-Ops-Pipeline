@@ -14,19 +14,16 @@ mlflow_uri = os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
 mlflow.set_tracking_uri(mlflow_uri)
 
 def run_monitor_and_retrain():
-    import download_data
-    download_data.download_dataset()
+    import db
+    conn = db.get_connection()
     
     print("Loading baseline reference data (first 50,000 rows)...")
-    ref_df = pd.read_csv("Data/creditcard.csv", nrows=50000)
-    ref_features = ref_df.drop(columns=['Class', 'Time'])
+    ref_df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY id LIMIT 50000")
+    ref_features = ref_df.drop(columns=['Class', 'Time', 'id'])
     
     print("Loading recent simulated traffic (next 5000 rows)...")
-    # Simulate pulling the recent traffic from the database
-    header = pd.read_csv("Data/creditcard.csv", nrows=0).columns
-    recent_df = pd.read_csv("Data/creditcard.csv", skiprows=range(1, 50001), nrows=5000)
-    recent_df.columns = header
-    recent_features = recent_df.drop(columns=['Class', 'Time'])
+    recent_df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY id OFFSET 50000 LIMIT 5000")
+    recent_features = recent_df.drop(columns=['Class', 'Time', 'id'])
     
     print("\nRunning Evidently AI Data Drift Report...")
     report = Report(metrics=[DataDriftPreset()])
@@ -41,7 +38,7 @@ def trigger_retraining(recent_df):
     print("--- Starting Automated Retraining Pipeline ---")
     
     # We simulate joining transactions with ground_truth by using the Class column
-    X = recent_df.drop(columns=['Class', 'Time'])
+    X = recent_df.drop(columns=['Class', 'Time', 'id'])
     y = recent_df['Class']
     
     fraud_count = y.sum()

@@ -12,12 +12,13 @@ def train_and_register_baseline():
     mlflow.set_tracking_uri(mlflow_uri)
     mlflow.set_experiment("Fraud_Scoring_Baseline")
 
-    print("Loading data for baseline model...")
-    # Load just the first 50,000 rows for the baseline to simulate starting from the past
-    df = pd.read_csv("Data/creditcard.csv", nrows=50000)
+    print("Loading data for baseline model from PostgreSQL...")
+    import db
+    conn = db.get_connection()
+    df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY id LIMIT 50000")
     
     # Features and Target
-    X = df.drop(columns=['Class', 'Time'])
+    X = df.drop(columns=['Class', 'Time', 'id'])
     y = df['Class']
 
     print(f"Training Logistic Regression on {len(df)} transactions (Frauds: {y.sum()})...")

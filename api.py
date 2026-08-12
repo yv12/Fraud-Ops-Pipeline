@@ -140,12 +140,6 @@ def auto_initialize():
     """Auto-setup DB, train baseline model, and start simulator on first deploy."""
     import setup_db
     import train_baseline
-    import download_data
-    
-    # Step 0: Download dataset if not present (needed on Railway since CSV isn't in git)
-    print("[AUTO-INIT] Checking for dataset...")
-    if not download_data.download_dataset():
-        print("[AUTO-INIT] WARNING: Dataset not available. Simulator will be disabled.")
     
     # Step 1: Create tables if they don't exist
     print("[AUTO-INIT] Setting up database schema...")
@@ -160,12 +154,8 @@ def auto_initialize():
         client.get_model_version_by_alias("FraudScoringModel", "Production")
         print("[AUTO-INIT] Production model already exists, skipping training.")
     except Exception:
-        if os.path.exists("Data/creditcard.csv"):
-            print("[AUTO-INIT] No Production model found. Training baseline...")
-            train_baseline.train_and_register_baseline()
-        else:
-            print("[AUTO-INIT] No model and no data. Cannot train baseline.")
-            return
+        print("[AUTO-INIT] No Production model found. Training baseline...")
+        train_baseline.train_and_register_baseline()
     
     # Step 3: Reload models after training
     load_models_from_mlflow()
@@ -184,20 +174,23 @@ def run_builtin_simulator():
         # Give the server a moment to fully start
         time.sleep(3)
         
-        print("[SIMULATOR] Loading transaction data...")
+        print("[SIMULATOR] Connecting to PostgreSQL to load historical traffic...")
         try:
-            header = pd.read_csv("Data/creditcard.csv", nrows=0).columns
-            df = pd.read_csv("Data/creditcard.csv", skiprows=range(1, 100000), nrows=10000)
-            df.columns = header
-        except FileNotFoundError:
-            print("[SIMULATOR] creditcard.csv not found. Simulator disabled.")
+            conn = db.get_connection()
+            # Fetch 10000 rows offset by 100000 to use as fresh "live" traffic
+            df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY id OFFSET 100000 LIMIT 10000")
+            if df.empty:
+                print("[SIMULATOR] No data found in historical_data table! Run upload_to_sql.py first.")
+                return
+        except Exception as e:
+            print(f"[SIMULATOR] Error loading data from SQL: {e}")
             return
-        
+            
         print(f"[SIMULATOR] Loaded {len(df)} rows. Starting live traffic...")
         while True:
             row = df.sample(1).iloc[0]
             tx_id = str(uuid.uuid4())
-            features = row.drop(['Class']).to_dict()
+            features = row.drop(['Class', 'id']).to_dict()
             
             # Score natively in-process to completely bypass HTTP and JSON serialization issues
             try:

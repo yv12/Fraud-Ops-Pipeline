@@ -17,8 +17,6 @@ def simulate_shadow_traffic_if_needed(conn):
     this helper function generates 2000 new transactions, scores them locally with both models,
     and injects them into the database so the Judge has something to grade!
     """
-    import download_data
-    download_data.download_dataset()
     
     count_df = db.get_dataframe(conn, "SELECT COUNT(*) as count FROM predictions WHERE prediction_type = 'Shadow'")
     count = count_df['count'].iloc[0]
@@ -38,11 +36,9 @@ def simulate_shadow_traffic_if_needed(conn):
     cand_model = mlflow.sklearn.load_model(f"models:/FraudScoringModel@Candidate")
     
     # Load a brand new slice of unseen test data (rows 55000 to 57000)
-    header = pd.read_csv("Data/creditcard.csv", nrows=0).columns
-    test_df = pd.read_csv("Data/creditcard.csv", skiprows=range(1, 55001), nrows=2000)
-    test_df.columns = header
+    test_df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY id OFFSET 55000 LIMIT 2000")
     
-    X = test_df.drop(columns=['Class', 'Time'])
+    X = test_df.drop(columns=['Class', 'Time', 'id'])
     
     for i, row in test_df.iterrows():
         tx_id = str(uuid.uuid4())
