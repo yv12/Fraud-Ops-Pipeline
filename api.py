@@ -199,21 +199,56 @@ def run_builtin_simulator():
             tx_id = str(uuid.uuid4())
             features = row.drop(['Class']).to_dict()
             
-            # Score via HTTP to properly hit the FastAPI endpoint which triggers WebSockets natively
-            import requests
-            import os
-            port = os.environ.get("PORT", "8000")
-            url = f"http://127.0.0.1:{port}/score"
-            
-            payload = {
-                "transaction_id": tx_id,
-                "features": features
-            }
-            
+            # Score natively in-process to completely bypass HTTP and JSON serialization issues
             try:
-                requests.post(url, json=payload, timeout=2)
-            except requests.exceptions.RequestException as e:
-                print(f"[SIMULATOR] Error sending request: {e}")
+                if models["Production"] is not None:
+                    features_for_model = {k: v for k, v in features.items() if k != 'Time'}
+                    import pandas as _pd
+                    df_features = _pd.DataFrame([features_for_model])
+                    
+                    global live_transaction_count
+                    live_transaction_count += 1
+                    
+                    db_queue.put(("TX", tx_id, features))
+                    
+                    prod_prob = models["Production"].predict_proba(df_features)[0][1]
+                    prod_decision = 1 if prod_prob >= 0.5 else 0
+                    db_queue.put(("SCORE", tx_id, f"v{model_versions['Production']}", prod_prob, "Production"))
+                    
+                    cand_prob = None
+                    if models["Candidate"] is not None:
+                        try:
+                            cand_prob = models["Candidate"].predict_proba(df_features)[0][1]
+                            db_queue.put(("SCORE", tx_id, f"v{model_versions['Candidate']}", cand_prob, "Shadow"))
+                        except Exception:
+                            pass
+                    
+                    amount = features.get("Amount", 0.0)
+                    payload = {
+                        "type": "TX",
+                        "transaction_id": tx_id,
+                        "amount": round(amount, 2),
+                        "prod_prob": round(prod_prob, 4),
+                        "prod_decision": prod_decision,
+                        "cand_prob": round(cand_prob, 4) if cand_prob is not None else None,
+                        "cand_decision": 1 if (cand_prob is not None and cand_prob >= 0.5) else 0,
+                        "prod_version": model_versions["Production"],
+                        "cand_version": model_versions["Candidate"],
+                        "prod_metrics": model_metrics["Production"],
+                        "cand_metrics": model_metrics["Candidate"],
+                        "total_count": live_transaction_count
+                    }
+                    
+                    recent_logs.append(payload)
+                    if len(recent_logs) > 50:
+                        recent_logs.pop(0)
+                    
+                    # Safely broadcast to main event loop
+                    if hasattr(app.state, "loop"):
+                        asyncio.run_coroutine_threadsafe(manager.broadcast(payload), app.state.loop)
+                        
+            except Exception as e:
+                print(f"[SIMULATOR] Error: {e}")
             
             time.sleep(random.uniform(0.5, 2.0))
     
@@ -222,6 +257,7 @@ def run_builtin_simulator():
 @app.on_event("startup")
 def startup_event():
     print("Starting API...")
+    app.state.loop = asyncio.get_running_loop()
     threading.Thread(target=db_worker, daemon=True).start()
     load_models_from_mlflow()
     threading.Thread(target=poll_mlflow, daemon=True).start()
