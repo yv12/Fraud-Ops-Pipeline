@@ -17,6 +17,9 @@ def simulate_shadow_traffic_if_needed(conn):
     this helper function generates 2000 new transactions, scores them locally with both models,
     and injects them into the database so the Judge has something to grade!
     """
+    import download_data
+    download_data.download_dataset()
+    
     count_df = db.get_dataframe(conn, "SELECT COUNT(*) as count FROM predictions WHERE prediction_type = 'Shadow'")
     count = count_df['count'].iloc[0]
     if count > 100:

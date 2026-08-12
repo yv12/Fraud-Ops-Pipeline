@@ -14,6 +14,9 @@ mlflow_uri = os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
 mlflow.set_tracking_uri(mlflow_uri)
 
 def run_monitor_and_retrain():
+    import download_data
+    download_data.download_dataset()
+    
     print("Loading baseline reference data (first 50,000 rows)...")
     ref_df = pd.read_csv("Data/creditcard.csv", nrows=50000)
     ref_features = ref_df.drop(columns=['Class', 'Time'])
