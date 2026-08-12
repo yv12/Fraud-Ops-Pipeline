@@ -58,7 +58,6 @@ def setup_database():
     print("Creating historical data table...")
     db.execute_query(conn, """
         CREATE TABLE IF NOT EXISTS historical_data (
-            id SERIAL PRIMARY KEY,
             Time DOUBLE PRECISION,
             V1 DOUBLE PRECISION, V2 DOUBLE PRECISION, V3 DOUBLE PRECISION, V4 DOUBLE PRECISION, V5 DOUBLE PRECISION, 
             V6 DOUBLE PRECISION, V7 DOUBLE PRECISION, V8 DOUBLE PRECISION, V9 DOUBLE PRECISION, V10 DOUBLE PRECISION, 

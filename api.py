@@ -181,7 +181,7 @@ def run_builtin_simulator():
         try:
             conn = db.get_connection()
             # Fetch 10000 rows offset by 100000 to use as fresh "live" traffic
-            df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY id OFFSET 100000 LIMIT 10000")
+            df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY Time OFFSET 100000 LIMIT 10000")
             if df.empty:
                 print("[SIMULATOR] No data found in historical_data table! Run upload_to_sql.py first.")
                 return
@@ -192,8 +192,9 @@ def run_builtin_simulator():
         print(f"[SIMULATOR] Loaded {len(df)} rows. Starting live traffic...")
         while True:
             row = df.sample(1).iloc[0]
+            # Use real transaction IDs if they were strings, else generate one
             tx_id = str(uuid.uuid4())
-            features = row.drop(['Class', 'id']).to_dict()
+            features = row.drop(['Class']).to_dict()
             
             # Score natively in-process to completely bypass HTTP and JSON serialization issues
             try:

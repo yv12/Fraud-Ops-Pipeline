@@ -18,12 +18,12 @@ def run_monitor_and_retrain():
     conn = db.get_connection()
     
     print("Loading baseline reference data (first 50,000 rows)...")
-    ref_df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY id LIMIT 50000")
-    ref_features = ref_df.drop(columns=['Class', 'Time', 'id'])
+    ref_df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY Time LIMIT 50000")
+    ref_features = ref_df.drop(columns=['Class', 'Time'])
     
     print("Loading recent simulated traffic (next 5000 rows)...")
-    recent_df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY id OFFSET 50000 LIMIT 5000")
-    recent_features = recent_df.drop(columns=['Class', 'Time', 'id'])
+    recent_df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY Time OFFSET 50000 LIMIT 5000")
+    recent_features = recent_df.drop(columns=['Class', 'Time'])
     
     print("\nRunning Evidently AI Data Drift Report...")
     report = Report(metrics=[DataDriftPreset()])
@@ -38,7 +38,7 @@ def trigger_retraining(recent_df):
     print("--- Starting Automated Retraining Pipeline ---")
     
     # We simulate joining transactions with ground_truth by using the Class column
-    X = recent_df.drop(columns=['Class', 'Time', 'id'])
+    X = recent_df.drop(columns=['Class', 'Time'])
     y = recent_df['Class']
     
     fraud_count = y.sum()

@@ -36,9 +36,9 @@ def simulate_shadow_traffic_if_needed(conn):
     cand_model = mlflow.sklearn.load_model(f"models:/FraudScoringModel@Candidate")
     
     # Load a brand new slice of unseen test data (rows 55000 to 57000)
-    test_df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY id OFFSET 55000 LIMIT 2000")
+    test_df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY Time OFFSET 55000 LIMIT 2000")
     
-    X = test_df.drop(columns=['Class', 'Time', 'id'])
+    X = test_df.drop(columns=['Class', 'Time'])
     
     for i, row in test_df.iterrows():
         tx_id = str(uuid.uuid4())
