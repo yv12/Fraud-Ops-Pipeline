@@ -161,7 +161,20 @@ def auto_initialize():
         print("[AUTO-INIT] Production model already exists, skipping training.")
     except Exception:
         print("[AUTO-INIT] No Production model found. Training baseline...")
+        import train_baseline
         train_baseline.train_and_register_baseline()
+        import gc
+        gc.collect()
+        
+    try:
+        client.get_model_version_by_alias("FraudScoringModel", "Candidate")
+        print("[AUTO-INIT] Candidate model already exists.")
+    except Exception:
+        print("[AUTO-INIT] No Candidate model found. Training one for demonstration...")
+        import monitor_and_retrain
+        monitor_and_retrain.run_monitor_and_retrain()
+        import gc
+        gc.collect()
     
     # Step 3: Reload models after training
     load_models_from_mlflow()
