@@ -140,6 +140,12 @@ def auto_initialize():
     """Auto-setup DB, train baseline model, and start simulator on first deploy."""
     import setup_db
     import train_baseline
+    import download_data
+    
+    # Step 0: Download dataset if not present (needed on Railway since CSV isn't in git)
+    print("[AUTO-INIT] Checking for dataset...")
+    if not download_data.download_dataset():
+        print("[AUTO-INIT] WARNING: Dataset not available. Simulator will be disabled.")
     
     # Step 1: Create tables if they don't exist
     print("[AUTO-INIT] Setting up database schema...")
@@ -154,8 +160,12 @@ def auto_initialize():
         client.get_model_version_by_alias("FraudScoringModel", "Production")
         print("[AUTO-INIT] Production model already exists, skipping training.")
     except Exception:
-        print("[AUTO-INIT] No Production model found. Training baseline...")
-        train_baseline.train_and_register_baseline()
+        if os.path.exists("Data/creditcard.csv"):
+            print("[AUTO-INIT] No Production model found. Training baseline...")
+            train_baseline.train_and_register_baseline()
+        else:
+            print("[AUTO-INIT] No model and no data. Cannot train baseline.")
+            return
     
     # Step 3: Reload models after training
     load_models_from_mlflow()
