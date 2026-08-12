@@ -8,7 +8,7 @@ import numpy as np
 import db
 import math
 
-NUM_ROWS = 120000  # Enough for baseline (50k), shadow (2k), and simulator (10k)
+NUM_ROWS = 70000  # Enough for baseline (50k), shadow (2k), and simulator (10k)
 
 def generate_and_upload():
     conn = db.get_connection()

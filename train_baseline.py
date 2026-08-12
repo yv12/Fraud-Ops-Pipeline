@@ -37,8 +37,8 @@ def train_and_register_baseline():
         print(f"Baseline Precision on training data: {precision:.4f}")
         print(f"Baseline Recall on training data: {recall:.4f}")
         
-        # Log the model
-        model_info = mlflow.sklearn.log_model(model, "model")
+        # Log the model with explicit requirements to prevent OOM during environment inference
+        model_info = mlflow.sklearn.log_model(model, "model", pip_requirements=["scikit-learn"])
         
         # Register the model
         model_name = "FraudScoringModel"

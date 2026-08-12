@@ -59,7 +59,7 @@ def trigger_retraining(recent_df):
         print(f"New Candidate Precision on recent data: {precision:.4f}")
         print(f"New Candidate Recall on recent data: {recall:.4f}")
         
-        model_info = mlflow.sklearn.log_model(model, "model")
+        model_info = mlflow.sklearn.log_model(model, "model", pip_requirements=["scikit-learn"])
         
         model_name = "FraudScoringModel"
         print(f"\nRegistering new model as '{model_name}'...")

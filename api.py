@@ -151,6 +151,9 @@ def auto_initialize():
     import upload_to_sql
     upload_to_sql.generate_and_upload()
     
+    import gc
+    gc.collect()
+    
     # Step 2: Train baseline if no Production model exists
     client = MlflowClient()
     try:
@@ -180,8 +183,8 @@ def run_builtin_simulator():
         print("[SIMULATOR] Connecting to PostgreSQL to load historical traffic...")
         try:
             conn = db.get_connection()
-            # Fetch 10000 rows offset by 100000 to use as fresh "live" traffic
-            df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY Time OFFSET 100000 LIMIT 10000")
+            # Fetch 10000 rows offset by 57000 to use as fresh "live" traffic
+            df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY Time OFFSET 57000 LIMIT 10000")
             if df.empty:
                 print("[SIMULATOR] No data found in historical_data table! Run upload_to_sql.py first.")
                 return
