@@ -226,17 +226,17 @@ def run_builtin_simulator():
                     amount = features.get("Amount", 0.0)
                     payload = {
                         "type": "TX",
-                        "transaction_id": tx_id,
-                        "amount": round(amount, 2),
-                        "prod_prob": round(prod_prob, 4),
-                        "prod_decision": prod_decision,
-                        "cand_prob": round(cand_prob, 4) if cand_prob is not None else None,
-                        "cand_decision": 1 if (cand_prob is not None and cand_prob >= 0.5) else 0,
-                        "prod_version": model_versions["Production"],
-                        "cand_version": model_versions["Candidate"],
+                        "transaction_id": str(tx_id),
+                        "amount": float(round(amount, 2)),
+                        "prod_prob": float(round(prod_prob, 4)),
+                        "prod_decision": int(prod_decision),
+                        "cand_prob": float(round(cand_prob, 4)) if cand_prob is not None else None,
+                        "cand_decision": int(1) if (cand_prob is not None and cand_prob >= 0.5) else int(0),
+                        "prod_version": str(model_versions["Production"]),
+                        "cand_version": str(model_versions["Candidate"]) if model_versions["Candidate"] else None,
                         "prod_metrics": model_metrics["Production"],
                         "cand_metrics": model_metrics["Candidate"],
-                        "total_count": live_transaction_count
+                        "total_count": int(live_transaction_count)
                     }
                     
                     recent_logs.append(payload)
