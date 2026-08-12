@@ -2,7 +2,7 @@ import pandas as pd
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
-import duckdb
+import db
 import mlflow
 import mlflow.sklearn
 from mlflow.tracking import MlflowClient
@@ -18,7 +18,8 @@ os.makedirs("dashboard", exist_ok=True)
 app = FastAPI(title="Fraud Scoring API")
 
 DB_PATH = "fraud_pipeline.duckdb"
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow_uri = os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
+mlflow.set_tracking_uri(mlflow_uri)
 
 models = {"Production": None, "Candidate": None}
 model_versions = {"Production": None, "Candidate": None}
@@ -59,7 +60,7 @@ class GroundTruthRequest(BaseModel):
     actual_label: int
 
 def db_worker():
-    conn = duckdb.connect(DB_PATH)
+    conn = db.get_connection()
     while True:
         item = db_queue.get()
         if item is None: break
@@ -69,19 +70,27 @@ def db_worker():
                 _, tx_id, features = item
                 cols = ['Time'] + [f'V{i}' for i in range(1, 29)] + ['Amount']
                 vals = [features.get(c, 0.0) for c in cols]
-                conn.execute(
-                    f"INSERT INTO transactions (transaction_id, {','.join(cols)}) VALUES (?, {','.join(['?']*30)})",
-                    [tx_id] + vals
-                )
+                query = f"INSERT INTO transactions (transaction_id, {','.join(cols)}) VALUES (?, {','.join(['?']*30)})"
+                db.execute_query(conn, query, [tx_id] + vals)
             elif action == "SCORE":
                 _, tx_id, model_ver, score, pred_type = item
-                conn.execute(
-                    "INSERT INTO predictions (transaction_id, model_version, score, prediction_type) VALUES (?, ?, ?, ?)",
-                    [tx_id, model_ver, score, pred_type]
-                )
+                is_postgres = os.environ.get("DATABASE_URL") is not None
+                if is_postgres:
+                    db.execute_query(
+                        conn,
+                        "INSERT INTO predictions (transaction_id, model_version, score, prediction_type) VALUES (?, ?, ?, ?)",
+                        [tx_id, model_ver, score, pred_type]
+                    )
+                else:
+                    db.execute_query(
+                        conn,
+                        "INSERT INTO predictions (prediction_id, transaction_id, model_version, score, prediction_type) VALUES (nextval('seq_pred_id'), ?, ?, ?, ?)",
+                        [tx_id, model_ver, score, pred_type]
+                    )
             elif action == "GROUND_TRUTH":
                 _, tx_id, actual_label = item
-                conn.execute(
+                db.execute_query(
+                    conn,
                     "INSERT INTO ground_truth (transaction_id, actual_label) VALUES (?, ?)", 
                     [tx_id, actual_label]
                 )

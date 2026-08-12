@@ -1,39 +1,53 @@
 # pyrefly: ignore [missing-import]
-import duckdb
+import os
+import db
 
 def setup_database():
-    conn = duckdb.connect('fraud_pipeline.duckdb')
+    conn = db.get_connection()
+    is_postgres = os.environ.get("DATABASE_URL") is not None
     
     print("Creating transactions table...")
-    conn.execute("""
+    db.execute_query(conn, """
         CREATE TABLE IF NOT EXISTS transactions (
             transaction_id VARCHAR PRIMARY KEY,
-            Time DOUBLE,
-            V1 DOUBLE, V2 DOUBLE, V3 DOUBLE, V4 DOUBLE, V5 DOUBLE, 
-            V6 DOUBLE, V7 DOUBLE, V8 DOUBLE, V9 DOUBLE, V10 DOUBLE, 
-            V11 DOUBLE, V12 DOUBLE, V13 DOUBLE, V14 DOUBLE, V15 DOUBLE, 
-            V16 DOUBLE, V17 DOUBLE, V18 DOUBLE, V19 DOUBLE, V20 DOUBLE, 
-            V21 DOUBLE, V22 DOUBLE, V23 DOUBLE, V24 DOUBLE, V25 DOUBLE, 
-            V26 DOUBLE, V27 DOUBLE, V28 DOUBLE,
-            Amount DOUBLE
+            Time DOUBLE PRECISION,
+            V1 DOUBLE PRECISION, V2 DOUBLE PRECISION, V3 DOUBLE PRECISION, V4 DOUBLE PRECISION, V5 DOUBLE PRECISION, 
+            V6 DOUBLE PRECISION, V7 DOUBLE PRECISION, V8 DOUBLE PRECISION, V9 DOUBLE PRECISION, V10 DOUBLE PRECISION, 
+            V11 DOUBLE PRECISION, V12 DOUBLE PRECISION, V13 DOUBLE PRECISION, V14 DOUBLE PRECISION, V15 DOUBLE PRECISION, 
+            V16 DOUBLE PRECISION, V17 DOUBLE PRECISION, V18 DOUBLE PRECISION, V19 DOUBLE PRECISION, V20 DOUBLE PRECISION, 
+            V21 DOUBLE PRECISION, V22 DOUBLE PRECISION, V23 DOUBLE PRECISION, V24 DOUBLE PRECISION, V25 DOUBLE PRECISION, 
+            V26 DOUBLE PRECISION, V27 DOUBLE PRECISION, V28 DOUBLE PRECISION,
+            Amount DOUBLE PRECISION
         );
     """)
 
     print("Creating predictions table...")
-    conn.execute("""
-        CREATE SEQUENCE IF NOT EXISTS seq_pred_id;
-        CREATE TABLE IF NOT EXISTS predictions (
-            prediction_id INTEGER DEFAULT nextval('seq_pred_id') PRIMARY KEY,
-            transaction_id VARCHAR,
-            model_version VARCHAR,
-            score DOUBLE,
-            prediction_type VARCHAR, -- 'Production' or 'Shadow'
-            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
-    """)
+    if is_postgres:
+        db.execute_query(conn, """
+            CREATE TABLE IF NOT EXISTS predictions (
+                prediction_id SERIAL PRIMARY KEY,
+                transaction_id VARCHAR,
+                model_version VARCHAR,
+                score DOUBLE PRECISION,
+                prediction_type VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
+    else:
+        db.execute_query(conn, """
+            CREATE SEQUENCE IF NOT EXISTS seq_pred_id;
+            CREATE TABLE IF NOT EXISTS predictions (
+                prediction_id INTEGER DEFAULT nextval('seq_pred_id') PRIMARY KEY,
+                transaction_id VARCHAR,
+                model_version VARCHAR,
+                score DOUBLE,
+                prediction_type VARCHAR,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            );
+        """)
 
     print("Creating ground truth table...")
-    conn.execute("""
+    db.execute_query(conn, """
         CREATE TABLE IF NOT EXISTS ground_truth (
             transaction_id VARCHAR PRIMARY KEY,
             actual_label INTEGER,
@@ -41,11 +55,7 @@ def setup_database():
         );
     """)
     
-    print("Database schema successfully created in fraud_pipeline.duckdb")
-    
-    # Show tables to verify
-    tables = conn.execute("SHOW TABLES").fetchall()
-    print("Tables in database:", tables)
+    print("Database schema successfully created!")
 
 if __name__ == "__main__":
     setup_database()

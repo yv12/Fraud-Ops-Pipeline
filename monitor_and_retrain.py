@@ -8,7 +8,10 @@ from mlflow.tracking import MlflowClient
 from evidently import Report
 from evidently.presets import DataDriftPreset
 
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
+import os
+
+mlflow_uri = os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
+mlflow.set_tracking_uri(mlflow_uri)
 
 def run_monitor_and_retrain():
     print("Loading baseline reference data (first 50,000 rows)...")

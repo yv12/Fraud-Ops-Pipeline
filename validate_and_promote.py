@@ -1,4 +1,5 @@
-import duckdb
+import db
+import os
 import pandas as pd
 import uuid
 import mlflow
@@ -7,7 +8,8 @@ from mlflow.tracking import MlflowClient
 from sklearn.metrics import precision_score, recall_score
 
 DB_PATH = "fraud_pipeline.duckdb"
-mlflow.set_tracking_uri("sqlite:///mlflow.db")
+mlflow_uri = os.environ.get("MLFLOW_TRACKING_URI", "sqlite:///mlflow.db")
+mlflow.set_tracking_uri(mlflow_uri)
 
 def simulate_shadow_traffic_if_needed(conn):
     """
@@ -15,7 +17,8 @@ def simulate_shadow_traffic_if_needed(conn):
     this helper function generates 2000 new transactions, scores them locally with both models,
     and injects them into the database so the Judge has something to grade!
     """
-    count = conn.execute("SELECT COUNT(*) FROM predictions WHERE prediction_type = 'Shadow'").fetchone()[0]
+    count_df = db.get_dataframe(conn, "SELECT COUNT(*) as count FROM predictions WHERE prediction_type = 'Shadow'")
+    count = count_df['count'].iloc[0]
     if count > 100:
         return
         
@@ -42,27 +45,45 @@ def simulate_shadow_traffic_if_needed(conn):
         tx_id = str(uuid.uuid4())
         
         actual = int(row['Class'])
-        conn.execute("INSERT INTO ground_truth (transaction_id, actual_label) VALUES (?, ?)", [tx_id, actual])
+        db.execute_query(conn, "INSERT INTO ground_truth (transaction_id, actual_label) VALUES (?, ?)", [tx_id, actual])
         
         features_df = pd.DataFrame([X.iloc[i].to_dict()])
         prod_prob = prod_model.predict_proba(features_df)[0][1]
         cand_prob = cand_model.predict_proba(features_df)[0][1]
         
-        conn.execute("INSERT INTO predictions VALUES (nextval('seq_pred_id'), ?, ?, ?, ?, CURRENT_TIMESTAMP)", 
-                     [tx_id, f"v{prod_ver}", prod_prob, "Production"])
-                     
-        conn.execute("INSERT INTO predictions VALUES (nextval('seq_pred_id'), ?, ?, ?, ?, CURRENT_TIMESTAMP)", 
-                     [tx_id, f"v{cand_ver}", cand_prob, "Shadow"])
+        is_postgres = os.environ.get("DATABASE_URL") is not None
+        if is_postgres:
+            db.execute_query(
+                conn, 
+                "INSERT INTO predictions (transaction_id, model_version, score, prediction_type, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)", 
+                [tx_id, f"v{prod_ver}", prod_prob, "Production"]
+            )
+            db.execute_query(
+                conn, 
+                "INSERT INTO predictions (transaction_id, model_version, score, prediction_type, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)", 
+                [tx_id, f"v{cand_ver}", cand_prob, "Shadow"]
+            )
+        else:
+            db.execute_query(
+                conn, 
+                "INSERT INTO predictions VALUES (nextval('seq_pred_id'), ?, ?, ?, ?, CURRENT_TIMESTAMP)", 
+                [tx_id, f"v{prod_ver}", prod_prob, "Production"]
+            )
+            db.execute_query(
+                conn, 
+                "INSERT INTO predictions VALUES (nextval('seq_pred_id'), ?, ?, ?, ?, CURRENT_TIMESTAMP)", 
+                [tx_id, f"v{cand_ver}", cand_prob, "Shadow"]
+            )
 
 def run_validation_and_promotion():
-    conn = duckdb.connect(DB_PATH)
+    conn = db.get_connection()
     
     simulate_shadow_traffic_if_needed(conn)
     
     print("\n--- Phase 5: The Judge ---")
     print("Pulling all transactions that were scored by BOTH models and have Ground Truth...")
     
-    df = conn.execute("""
+    df = db.get_dataframe(conn, """
         SELECT 
             p1.transaction_id,
             p1.model_version as prod_model,
@@ -74,7 +95,7 @@ def run_validation_and_promotion():
         JOIN predictions p2 ON p1.transaction_id = p2.transaction_id
         JOIN ground_truth g ON p1.transaction_id = g.transaction_id
         WHERE p1.prediction_type = 'Production' AND p2.prediction_type = 'Shadow'
-    """).df()
+    """)
     
     if len(df) == 0:
         print("No paired predictions found.")
