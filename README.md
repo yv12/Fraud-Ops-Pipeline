@@ -2,6 +2,8 @@
 
 An end-to-end automated fraud detection system that simulates how banks and payment companies keep their AI models accurate, auditable, and safely replaceable — without any manual engineering work.
 
+**🚀 Deployed on Railway** — The entire pipeline runs in the cloud with auto-initialization, automatic model training, and a live WebSocket dashboard.
+
 ---
 
 ## What This Project Simulates
@@ -22,7 +24,7 @@ This project simulates the **complete lifecycle** of that fraud-detection AI —
 
 ### Live Dashboard
 
-The project includes a real-time web dashboard (`http://localhost:8000/`) with:
+The project includes a real-time web dashboard (available both locally and on Railway) with:
 - **Live scoring view** — Watch transactions flow through both models in real time, with risk scores (1-99) and fraud/normal decisions
 - **Architecture diagram** — An interactive, animated visualization of the entire data flow pipeline
 
@@ -76,15 +78,17 @@ To convert this pipeline into a credit risk system, you would:
 
 | Component | Technology |
 |-----------|-----------|
-| Language | Python 3 |
+| Language | Python 3.12 |
 | API Server | FastAPI + Uvicorn |
-| Database | DuckDB (local, embedded) |
+| Database | DuckDB (local) / PostgreSQL (cloud) |
 | Model Registry | MLflow |
 | Drift Monitoring | Evidently AI |
 | ML Model | Scikit-learn (Logistic Regression) |
 | Dashboard | Vanilla HTML/CSS/JS + WebSockets |
+| Cloud Hosting | Railway |
+| DB Abstraction | Custom `db.py` wrapper (DuckDB ↔ PostgreSQL) |
 
-## Quick Start
+## Quick Start (Local)
 
 ```bash
 # 1. Create virtual environment
@@ -93,15 +97,14 @@ python -m venv .venv
 source .venv/bin/activate     # Mac/Linux
 
 # 2. Install dependencies
-pip install fastapi uvicorn duckdb mlflow scikit-learn pandas evidently requests
+pip install -r requirements.txt
 
 # 3. Set up database and train baseline model
 python setup_db.py
 python train_baseline.py
 
-# 4. Start the API and Simulator
-uvicorn api:app --port 8000   # Terminal 1
-python simulator.py           # Terminal 2
+# 4. Start the API (auto-starts simulator in background)
+uvicorn api:app --port 8000
 
 # 5. Open the dashboard
 # Visit http://localhost:8000/ in your browser
@@ -109,17 +112,43 @@ python simulator.py           # Terminal 2
 
 > **Note:** The dataset (`Data/creditcard.csv`) is not included in this repository due to its size. Download it from [Kaggle](https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud) and place it in the `Data/` folder.
 
+## Deploy to Railway (Cloud)
+
+This project is configured for one-click deployment on [Railway](https://railway.app/).
+
+1. **Push to GitHub** — Railway deploys directly from your repo.
+2. **Create a new Railway project** and add a service from your GitHub repository.
+3. **Set the port** to `8000` in Settings → Networking.
+4. **Deploy** — On startup, the app will automatically:
+   - Create the database schema
+   - Train the baseline model (if no Production model exists)
+   - Start the transaction simulator in the background
+   - Serve the live dashboard
+
+### Environment Variables (Optional)
+
+| Variable | Purpose | Default |
+|---|---|---|
+| `DATABASE_URL` | PostgreSQL connection string (Railway provides this) | Falls back to local DuckDB |
+| `MLFLOW_TRACKING_URI` | Remote MLflow server URL | Falls back to local `sqlite:///mlflow.db` |
+
+> When `DATABASE_URL` is set, the app automatically switches from DuckDB to PostgreSQL — no code changes needed.
+
 ---
 
 ## Project Structure
 
 ```
-├── api.py                    # FastAPI server with shadow scoring & WebSocket streaming
-├── simulator.py              # Continuous transaction simulator
-├── setup_db.py               # Database schema setup
+├── api.py                    # FastAPI server with shadow scoring, WebSocket streaming & auto-init
+├── db.py                     # Database abstraction layer (DuckDB ↔ PostgreSQL)
+├── simulator.py              # Continuous transaction simulator (also runs embedded in api.py)
+├── setup_db.py               # Database schema setup (supports both DuckDB & PostgreSQL)
 ├── train_baseline.py         # Phase 2: Train and register baseline model
 ├── monitor_and_retrain.py    # Phase 4: Drift detection & auto-retraining
 ├── validate_and_promote.py   # Phase 5: Model comparison & promotion
+├── requirements.txt          # Python dependencies
+├── Procfile                  # Railway service start commands
+├── .python-version           # Pins Python 3.12 for Railway
 ├── dashboard/
 │   ├── index.html            # Live scoring dashboard
 │   ├── style.css             # Dashboard styling
@@ -139,4 +168,4 @@ python simulator.py           # Terminal 2
 
 ---
 
-*Built as a simulation to demonstrate production-grade MLOps patterns for fraud detection and beyond.*
+*Built as a simulation to demonstrate production-grade MLOps patterns for fraud detection and beyond. Deployed on Railway for live cloud hosting.*
