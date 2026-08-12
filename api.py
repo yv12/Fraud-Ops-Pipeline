@@ -143,10 +143,13 @@ def auto_initialize():
     
     # Step 1: Create tables if they don't exist
     print("[AUTO-INIT] Setting up database schema...")
-    try:
-        setup_db.setup_database()
-    except Exception as e:
-        print(f"[AUTO-INIT] DB setup note: {e}")
+    import setup_db
+    setup_db.setup_database()
+    
+    # Step 1.5: Seed database with historical data if empty
+    print("[AUTO-INIT] Checking historical dataset...")
+    import upload_to_sql
+    upload_to_sql.generate_and_upload()
     
     # Step 2: Train baseline if no Production model exists
     client = MlflowClient()
