@@ -137,24 +137,28 @@ def poll_mlflow():
         load_models_from_mlflow()
 
 def auto_initialize():
-    """Auto-setup DB, train baseline model, and start simulator on first deploy."""
-    import setup_db
-    import train_baseline
+    """Auto-setup DB, train baseline model, and start simulator on first deploy.
     
-    # Step 1: Create tables if they don't exist
+    Memory-optimized: each phase explicitly cleans up before the next one starts,
+    so peak memory stays within Railway's limits.
+    """
+    import gc
+    
+    # Phase 1: Create tables if they don't exist
     print("[AUTO-INIT] Setting up database schema...")
     import setup_db
     setup_db.setup_database()
+    del setup_db
+    gc.collect()
     
-    # Step 1.5: Seed database with historical data if empty
+    # Phase 2: Seed database with historical data if empty (chunked, low memory)
     print("[AUTO-INIT] Checking historical dataset...")
     import upload_to_sql
     upload_to_sql.generate_and_upload()
-    
-    import gc
+    del upload_to_sql
     gc.collect()
     
-    # Step 2: Train baseline if no Production model exists
+    # Phase 3: Train baseline if no Production model exists
     client = MlflowClient()
     try:
         client.get_model_version_by_alias("FraudScoringModel", "Production")
@@ -163,9 +167,10 @@ def auto_initialize():
         print("[AUTO-INIT] No Production model found. Training baseline...")
         import train_baseline
         train_baseline.train_and_register_baseline()
-        import gc
+        del train_baseline
         gc.collect()
-        
+    
+    # Phase 4: Train candidate if no Candidate model exists    
     try:
         client.get_model_version_by_alias("FraudScoringModel", "Candidate")
         print("[AUTO-INIT] Candidate model already exists.")
@@ -173,19 +178,23 @@ def auto_initialize():
         print("[AUTO-INIT] No Candidate model found. Training one for demonstration...")
         import monitor_and_retrain
         monitor_and_retrain.run_monitor_and_retrain()
-        import gc
+        del monitor_and_retrain
         gc.collect()
     
-    # Step 3: Reload models after training
+    del client
+    gc.collect()
+    
+    # Phase 5: Reload models (tiny — just sklearn model objects) & start simulator
     load_models_from_mlflow()
     
-    # Step 4: Start the built-in simulator
     print("[AUTO-INIT] Starting background simulator...")
     run_builtin_simulator()
 
 def run_builtin_simulator():
-    """Run the simulator as a background thread inside the API process."""
-    import pandas as pd
+    """Run the simulator as a background thread inside the API process.
+    
+    Memory-optimized: loads only 1K rows (down from 10K) and converts to float32.
+    """
     import uuid
     import random
     
@@ -196,26 +205,30 @@ def run_builtin_simulator():
         print("[SIMULATOR] Connecting to PostgreSQL to load historical traffic...")
         try:
             conn = db.get_connection()
-            # Fetch 10000 rows offset by 57000 to use as fresh "live" traffic
-            df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY Time OFFSET 57000 LIMIT 10000")
+            # Reduced from 10K to 1K rows — we just sample randomly anyway
+            df = db.get_dataframe(conn, "SELECT * FROM historical_data ORDER BY Time OFFSET 57000 LIMIT 1000")
             if df.empty:
                 print("[SIMULATOR] No data found in historical_data table! Run upload_to_sql.py first.")
                 return
         except Exception as e:
             print(f"[SIMULATOR] Error loading data from SQL: {e}")
             return
+        
+        # Convert to float32 to halve memory footprint
+        class_col = df['Class'].copy()
+        df = df.drop(columns=['Class']).astype('float32')
+        df['Class'] = class_col
+        del class_col
             
         print(f"[SIMULATOR] Loaded {len(df)} rows. Starting live traffic...")
         while True:
             row = df.sample(1).iloc[0]
-            # Use real transaction IDs if they were strings, else generate one
             tx_id = str(uuid.uuid4())
             features = row.drop(['Class']).to_dict()
             
-            # Score natively in-process to completely bypass HTTP and JSON serialization issues
             try:
                 if models["Production"] is not None:
-                    features_for_model = {k: v for k, v in features.items() if k != 'Time'}
+                    features_for_model = {k: float(v) for k, v in features.items() if k != 'Time'}
                     import pandas as _pd
                     df_features = _pd.DataFrame([features_for_model])
                     

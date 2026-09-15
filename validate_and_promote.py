@@ -16,10 +16,14 @@ def simulate_shadow_traffic_if_needed(conn):
     Since we didn't run the API long enough to gather thousands of real shadow traffic predictions,
     this helper function generates 2000 new transactions, scores them locally with both models,
     and injects them into the database so the Judge has something to grade!
+    
+    Memory-optimized: uses batch prediction instead of row-by-row.
     """
+    import gc
     
     count_df = db.get_dataframe(conn, "SELECT COUNT(*) as count FROM predictions WHERE prediction_type = 'Shadow'")
     count = count_df['count'].iloc[0]
+    del count_df
     if count > 100:
         return
         
@@ -40,39 +44,47 @@ def simulate_shadow_traffic_if_needed(conn):
     
     X = test_df.drop(columns=['Class', 'Time'])
     
-    for i, row in test_df.iterrows():
+    # Batch prediction — much faster and more memory-efficient than row-by-row
+    prod_probs = prod_model.predict_proba(X)[:, 1]
+    cand_probs = cand_model.predict_proba(X)[:, 1]
+    
+    # Free models immediately after scoring
+    del prod_model, cand_model
+    gc.collect()
+    
+    is_postgres = os.environ.get("DATABASE_URL") is not None
+    
+    for i in range(len(test_df)):
         tx_id = str(uuid.uuid4())
+        actual = int(test_df.iloc[i]['Class'])
         
-        actual = int(row['Class'])
         db.execute_query(conn, "INSERT INTO ground_truth (transaction_id, actual_label) VALUES (?, ?)", [tx_id, actual])
         
-        features_df = pd.DataFrame([X.iloc[i].to_dict()])
-        prod_prob = prod_model.predict_proba(features_df)[0][1]
-        cand_prob = cand_model.predict_proba(features_df)[0][1]
-        
-        is_postgres = os.environ.get("DATABASE_URL") is not None
         if is_postgres:
             db.execute_query(
                 conn, 
                 "INSERT INTO predictions (transaction_id, model_version, score, prediction_type, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)", 
-                [tx_id, f"v{prod_ver}", prod_prob, "Production"]
+                [tx_id, f"v{prod_ver}", float(prod_probs[i]), "Production"]
             )
             db.execute_query(
                 conn, 
                 "INSERT INTO predictions (transaction_id, model_version, score, prediction_type, created_at) VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)", 
-                [tx_id, f"v{cand_ver}", cand_prob, "Shadow"]
+                [tx_id, f"v{cand_ver}", float(cand_probs[i]), "Shadow"]
             )
         else:
             db.execute_query(
                 conn, 
                 "INSERT INTO predictions VALUES (nextval('seq_pred_id'), ?, ?, ?, ?, CURRENT_TIMESTAMP)", 
-                [tx_id, f"v{prod_ver}", prod_prob, "Production"]
+                [tx_id, f"v{prod_ver}", float(prod_probs[i]), "Production"]
             )
             db.execute_query(
                 conn, 
                 "INSERT INTO predictions VALUES (nextval('seq_pred_id'), ?, ?, ?, ?, CURRENT_TIMESTAMP)", 
-                [tx_id, f"v{cand_ver}", cand_prob, "Shadow"]
+                [tx_id, f"v{cand_ver}", float(cand_probs[i]), "Shadow"]
             )
+    
+    del test_df, X, prod_probs, cand_probs
+    gc.collect()
 
 def run_validation_and_promotion():
     conn = db.get_connection()
