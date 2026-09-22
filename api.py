@@ -29,6 +29,8 @@ db_queue = queue.Queue()
 # Global state for dashboard history
 live_transaction_count = 0
 recent_logs = []
+simulator_paused = True  # Paused by default to keep transaction logs frozen till now
+
 
 class ConnectionManager:
     def __init__(self):
@@ -97,6 +99,64 @@ def db_worker():
         except Exception as e:
             print(f"Failed to log {action} to DB:", e)
         db_queue.task_done()
+def load_recent_logs_from_db():
+    global live_transaction_count, recent_logs
+    try:
+        conn = db.get_connection()
+        df_cnt = db.get_dataframe(conn, "SELECT count(*) as cnt FROM transactions")
+        if not df_cnt.empty and pd.notna(df_cnt.iloc[0]['cnt']):
+            live_transaction_count = int(df_cnt.iloc[0]['cnt'])
+
+        df_preds = db.get_dataframe(conn, """
+            SELECT p.transaction_id, p.score, p.prediction_type, p.model_version, p.created_at, t.Amount
+            FROM (
+                SELECT transaction_id, score, prediction_type, model_version, created_at
+                FROM predictions
+                ORDER BY created_at DESC
+                LIMIT 100
+            ) p
+            LEFT JOIN transactions t ON p.transaction_id = t.transaction_id
+        """)
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+        if not df_preds.empty:
+            tx_map = {}
+            for _, row in df_preds.iloc[::-1].iterrows():
+                tid = str(row['transaction_id'])
+                if tid not in tx_map:
+                    tx_map[tid] = {
+                        "type": "TX",
+                        "transaction_id": tid,
+                        "amount": float(round(row['Amount'], 2)) if pd.notna(row['Amount']) else 0.0,
+                        "prod_prob": 0.0,
+                        "prod_decision": 0,
+                        "cand_prob": None,
+                        "cand_decision": 0,
+                        "prod_version": str(model_versions["Production"]) if model_versions["Production"] else "1",
+                        "cand_version": str(model_versions["Candidate"]) if model_versions["Candidate"] else None,
+                        "prod_metrics": model_metrics.get("Production"),
+                        "cand_metrics": model_metrics.get("Candidate"),
+                        "total_count": live_transaction_count
+                    }
+                score = float(row['score']) if pd.notna(row['score']) else 0.0
+                pred_type = str(row['prediction_type'])
+                if "Production" in pred_type:
+                    tx_map[tid]["prod_prob"] = float(round(score, 4))
+                    tx_map[tid]["prod_decision"] = 1 if score >= 0.5 else 0
+                    if pd.notna(row['model_version']):
+                        tx_map[tid]["prod_version"] = str(row['model_version']).replace("v", "")
+                else:
+                    tx_map[tid]["cand_prob"] = float(round(score, 4))
+                    tx_map[tid]["cand_decision"] = 1 if score >= 0.5 else 0
+                    if pd.notna(row['model_version']):
+                        tx_map[tid]["cand_version"] = str(row['model_version']).replace("v", "")
+            recent_logs = list(tx_map.values())[-50:]
+            print(f"[INIT] Loaded {len(recent_logs)} recent transaction logs from DB (Total: {live_transaction_count})")
+    except Exception as e:
+        print(f"[INIT] Could not load previous logs from DB: {e}")
 
 def load_models_from_mlflow():
     client = MlflowClient()
@@ -222,6 +282,10 @@ def run_builtin_simulator():
             
         print(f"[SIMULATOR] Loaded {len(df)} rows. Starting live traffic...")
         while True:
+            if simulator_paused:
+                time.sleep(0.5)
+                continue
+
             row = df.sample(1).iloc[0]
             tx_id = str(uuid.uuid4())
             features = row.drop(['Class']).to_dict()
@@ -286,24 +350,41 @@ async def startup_event():
     app.state.loop = asyncio.get_running_loop()
     threading.Thread(target=db_worker, daemon=True).start()
     load_models_from_mlflow()
+    load_recent_logs_from_db()
     threading.Thread(target=poll_mlflow, daemon=True).start()
     # Auto-initialize in background so server starts accepting requests immediately
     threading.Thread(target=auto_initialize, daemon=True).start()
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
+    global simulator_paused
     await manager.connect(websocket)
     
     # Send the historical state so dashboard doesn't reset on refresh
     await websocket.send_json({
         "type": "INIT",
         "total_count": live_transaction_count,
-        "recent_logs": recent_logs
+        "recent_logs": recent_logs,
+        "is_paused": simulator_paused
     })
     
     try:
         while True:
-            await websocket.receive_text()
+            msg_text = await websocket.receive_text()
+            try:
+                msg = json.loads(msg_text)
+                action = msg.get("action")
+                if action == "pause":
+                    simulator_paused = True
+                    await manager.broadcast({"type": "SIMULATOR_STATE", "paused": True})
+                elif action == "resume":
+                    simulator_paused = False
+                    await manager.broadcast({"type": "SIMULATOR_STATE", "paused": False})
+                elif action == "toggle":
+                    simulator_paused = not simulator_paused
+                    await manager.broadcast({"type": "SIMULATOR_STATE", "paused": simulator_paused})
+            except Exception:
+                pass
     except WebSocketDisconnect:
         manager.disconnect(websocket)
 
@@ -365,5 +446,34 @@ async def score_transaction(request: TransactionRequest):
 async def receive_ground_truth(request: GroundTruthRequest):
     db_queue.put(("GROUND_TRUTH", request.transaction_id, request.actual_label))
     return {"status": "accepted"}
+
+@app.get("/api/simulator/status")
+async def get_simulator_status():
+    return {
+        "paused": simulator_paused,
+        "total_count": live_transaction_count,
+        "recent_logs_count": len(recent_logs)
+    }
+
+@app.post("/api/simulator/pause")
+async def pause_simulator():
+    global simulator_paused
+    simulator_paused = True
+    await manager.broadcast({"type": "SIMULATOR_STATE", "paused": True})
+    return {"status": "paused", "paused": True}
+
+@app.post("/api/simulator/resume")
+async def resume_simulator():
+    global simulator_paused
+    simulator_paused = False
+    await manager.broadcast({"type": "SIMULATOR_STATE", "paused": False})
+    return {"status": "resumed", "paused": False}
+
+@app.post("/api/simulator/toggle")
+async def toggle_simulator():
+    global simulator_paused
+    simulator_paused = not simulator_paused
+    await manager.broadcast({"type": "SIMULATOR_STATE", "paused": simulator_paused})
+    return {"status": "toggled", "paused": simulator_paused}
 
 app.mount("/", StaticFiles(directory="dashboard", html=True), name="dashboard")

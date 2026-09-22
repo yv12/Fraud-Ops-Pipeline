@@ -18,21 +18,76 @@ const metCand = document.getElementById('cand-metrics');
 const terminal = document.getElementById('terminal');
 const txCounter = document.getElementById('tx-counter');
 
+const btnPauseToggle = document.getElementById('btn-pause-toggle');
+const pauseIcon = document.getElementById('pause-icon');
+const pauseText = document.getElementById('pause-text');
+const feedStatusText = document.getElementById('feed-status-text');
+const terminalBadge = document.getElementById('terminal-badge');
+
 let totalTransactions = 0;
+let isPaused = true;
+let socket = null;
+
+function updatePauseUI(paused) {
+    isPaused = paused;
+    if (paused) {
+        if (btnPauseToggle) {
+            btnPauseToggle.className = 'btn-pause paused';
+            btnPauseToggle.title = 'Live transaction checks are paused. Click to resume.';
+        }
+        if (pauseIcon) pauseIcon.innerText = '▶';
+        if (pauseText) pauseText.innerText = 'Resume Live';
+        if (feedStatusText) feedStatusText.innerText = 'Feed Paused';
+        if (terminalBadge) {
+            terminalBadge.className = 'terminal-badge paused';
+            terminalBadge.innerText = 'PAUSED — LOGS PRESERVED';
+        }
+        connectionStatus.classList.remove('green', 'red');
+        connectionStatus.classList.add('amber');
+    } else {
+        if (btnPauseToggle) {
+            btnPauseToggle.className = 'btn-pause live';
+            btnPauseToggle.title = 'Live transaction checks are active. Click to pause.';
+        }
+        if (pauseIcon) pauseIcon.innerText = '⏸';
+        if (pauseText) pauseText.innerText = 'Pause Stream';
+        if (feedStatusText) feedStatusText.innerText = 'Live Feed';
+        if (terminalBadge) {
+            terminalBadge.className = 'terminal-badge live';
+            terminalBadge.innerText = 'LIVE STREAMING';
+        }
+        connectionStatus.classList.remove('amber', 'red');
+        connectionStatus.classList.add('green');
+    }
+}
+
+if (btnPauseToggle) {
+    btnPauseToggle.addEventListener('click', () => {
+        if (socket && socket.readyState === WebSocket.OPEN) {
+            socket.send(JSON.stringify({ action: "toggle" }));
+        } else {
+            fetch('/api/simulator/toggle', { method: 'POST' })
+                .then(res => res.json())
+                .then(data => updatePauseUI(data.paused))
+                .catch(() => updatePauseUI(!isPaused));
+        }
+    });
+}
 
 function connect() {
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const ws = new WebSocket(`${protocol}//${window.location.host}/ws`);
+    socket = ws;
 
     ws.onopen = () => {
-        connectionStatus.classList.remove('red');
-        connectionStatus.classList.add('green');
         logTerminal('SYSTEM', 'Connected to WebSocket stream');
+        updatePauseUI(isPaused);
     };
 
     ws.onclose = () => {
-        connectionStatus.classList.remove('green');
+        connectionStatus.classList.remove('green', 'amber');
         connectionStatus.classList.add('red');
+        if (feedStatusText) feedStatusText.innerText = 'Disconnected';
         logTerminal('SYSTEM', 'Disconnected. Reconnecting in 3s...');
         setTimeout(connect, 3000);
     };
@@ -56,9 +111,18 @@ function connect() {
                     updateModel(cardCand, scoreCand, decCand, verCand, metCand, last.cand_prob, last.cand_decision, last.cand_version, last.cand_metrics);
                 }
             }
+
+            if (typeof data.is_paused !== 'undefined') {
+                updatePauseUI(data.is_paused);
+            }
+        } else if (data.type === "SIMULATOR_STATE") {
+            updatePauseUI(data.paused);
+            logTerminal('SYSTEM', data.paused ? 'Live transaction checks paused. Logs preserved.' : 'Live transaction checks resumed.');
         } else {
-            // New live transaction
-            processTransaction(data);
+            // New live transaction (only process if not paused)
+            if (!isPaused) {
+                processTransaction(data);
+            }
         }
     };
 }

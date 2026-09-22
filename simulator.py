@@ -5,6 +5,7 @@ import time
 import random
 
 API_SCORE_URL = "http://localhost:8000/score"
+API_STATUS_URL = "http://localhost:8000/api/simulator/status"
 
 def run_continuous_simulation():
     print("Starting continuous live traffic simulation for dashboard...")
@@ -14,6 +15,15 @@ def run_continuous_simulation():
     df.columns = header
     
     while True: # Infinite loop for the dashboard
+        # Check if the API simulation is paused
+        try:
+            status_resp = requests.get(API_STATUS_URL, timeout=2)
+            if status_resp.status_code == 200 and status_resp.json().get("paused", False):
+                time.sleep(1)
+                continue
+        except requests.exceptions.RequestException:
+            pass
+
         # Pick a random row to simulate live traffic
         row = df.sample(1).iloc[0]
         tx_id = str(uuid.uuid4())

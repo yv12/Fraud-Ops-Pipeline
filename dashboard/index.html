@@ -17,9 +17,13 @@
                     <a href="index.html" class="nav-link active">Live Dashboard</a>
                     <a href="architecture.html" class="nav-link">Architecture</a>
                 </nav>
+                <button id="btn-pause-toggle" class="btn-pause paused" title="Toggle live transaction checks">
+                    <span id="pause-icon">▶</span>
+                    <span id="pause-text">Resume Live</span>
+                </button>
                 <div class="status">
-                    <div id="connection-status" class="bulb red"></div>
-                    <span>Live Feed</span>
+                    <div id="connection-status" class="bulb amber"></div>
+                    <span id="feed-status-text">Feed Paused</span>
                 </div>
             </div>
         </header>
@@ -61,6 +65,7 @@
         <div class="terminal-container">
             <div class="terminal-header">
                 <h3>Live Transaction Terminal</h3>
+                <span id="terminal-badge" class="terminal-badge paused">PAUSED — LOGS PRESERVED</span>
             </div>
             <div class="terminal" id="terminal">
                 <!-- Logs go here -->
